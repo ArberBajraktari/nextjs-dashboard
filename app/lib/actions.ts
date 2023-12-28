@@ -6,6 +6,8 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
+
+const bcrypt = require("bcrypt") 
  
 const FormSchema = z.object({
   id: z.string(),
@@ -19,8 +21,17 @@ const FormSchema = z.object({
   date: z.string(),
 });
 
+const RegisterFormSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().email({ message: 'Please enter a valid email address.' }),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters long.' }),
+});
+
+
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
+const CreateUser = RegisterFormSchema.omit({ id: true, date: true });
 
 export type State = {
   errors?: {
@@ -123,6 +134,51 @@ export async function createInvoice(prevState: State, formData: FormData) {
     }
   }
 
+  const hashPassword = async (password: string) => {
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    return hashedPassword;
+  };
+
+  export async function registerUser(
+    formData: FormData,
+  ) {
+      // Validate form using Zod
+    const validatedFields = CreateUser.safeParse({
+      name: formData.get('name'),
+      email: formData.get('email'),
+      password: formData.get('password')
+    });
+  
+    // If form validation fails, return errors early. Otherwise, continue.
+    if (!validatedFields.success) {
+      return {
+        errors: validatedFields.error.flatten().fieldErrors,
+        message: 'Missing Fields. Failed to Create Invoice.',
+      };
+    }
+  
+    // Prepare data for insertion into the database
+    const { name, email, password } = validatedFields.data;
+    const hashedPassword = hashPassword(password)
+
+    // Insert data into the database
+    try {
+      await sql`
+        INSERT INTO users (name, email, password)
+        VALUES (${name}, ${email}, ${await hashedPassword})
+      `;
+    } catch (error) {
+      // If a database error occurs, return a more specific error.
+      return {
+        message: 'Database Error: Failed to Create User.',
+      };
+    }
+ 
+    // Revalidate the cache for the invoices page and redirect the user.
+    revalidatePath('/login');
+    redirect('/login');
+  }
 
   export async function deleteInvoice(id: string) {
     try{
