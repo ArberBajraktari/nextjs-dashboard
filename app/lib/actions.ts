@@ -28,16 +28,31 @@ const RegisterFormSchema = z.object({
   password: z.string().min(6, { message: 'Password must be at least 6 characters long.' }),
 });
 
+const InsertSportSchema = z.object({
+  id: z.number(),
+  name: z.string().min(3, {message: "Name should be longer than 3 character"}),
+  description: z.string().min(6, { message: "Description should be longer than 3 character" }),
+});
+
 
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
 const CreateUser = RegisterFormSchema.omit({ id: true, date: true });
+const CreateSport = InsertSportSchema.omit({ id: true, date: true });
 
 export type State = {
   errors?: {
     customerId?: string[];
     amount?: string[];
     status?: string[];
+  };
+  message?: string | null;
+};
+
+export type SportState = {
+  errors?: {
+    name?: string[];
+    description?: string[];
   };
   message?: string | null;
 };
@@ -80,6 +95,41 @@ export async function createInvoice(prevState: State, formData: FormData) {
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
+
+export async function createSport(prevState: SportState, formData: FormData) {
+  const validatedFields = CreateSport.safeParse({
+    name: formData.get('sport'),
+    description: formData.get('sport_description'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Create Invoice.',
+    };
+  }
+ 
+  const { name, description } = validatedFields.data;
+
+  // Insert data into the database
+  try {
+    await sql`
+      INSERT INTO sports ("name", "desc")
+      VALUES ( ${name}, ${description})
+    `;
+  } catch (error) {
+    // If a database error occurs, return a more specific error.
+    return {
+      message: 'Database Error: Failed to Create Invoice.',
+    };
+  }
+ 
+  // Revalidate the cache for the invoices page and redirect the user.
+  revalidatePath('/dashboard/training');
+  redirect('/dashboard/training');
+}
+
+
   export async function updateInvoice(
     id: string,
     prevState: State,
