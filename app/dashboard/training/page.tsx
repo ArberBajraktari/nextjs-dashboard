@@ -21,7 +21,7 @@ export default async function Page() {
         <div className="mt-4 gap-2 md:mt-8">
           {sportActivity ? (
             sportActivity.map((sport, index) => 
-            <SportCard sport={sport} index={index} />
+            <SportCard sport={sport} index={index} key={index} />
             )
           ) : (
             <p>No items available.</p>
